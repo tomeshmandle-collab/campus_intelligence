@@ -1,23 +1,26 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { UserRole } from '../../types/auth';
 
 export interface ProtectedRouteProps {
   children: React.ReactNode;
   fallbackUrl?: string;
   onRedirect?: () => void;
+  allowedRoles?: UserRole[];
 }
 
 /**
  * Route protection wrapper for staff/uploader administration pages (M03 / P4).
- * Prevents UI flashing during session restoration and redirects unauthenticated
- * users to the login portal.
+ * Prevents UI flashing during session restoration, checks role permissions,
+ * and redirects unauthenticated users to the login portal.
  */
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   fallbackUrl = '/admin/login',
   onRedirect,
+  allowedRoles,
 }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -44,8 +47,25 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Block rendering protected UI if unauthenticated
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return null;
+  }
+
+  // Role authorization check (if allowedRoles is specified)
+  if (allowedRoles && !allowedRoles.includes(user.role as UserRole)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-md border border-slate-200 p-6 text-center space-y-3">
+          <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
+            !
+          </div>
+          <h2 className="text-lg font-bold text-slate-800">Access Restricted</h2>
+          <p className="text-sm text-slate-600">
+            Your institutional role (<strong className="font-semibold text-indigo-600">{user.role}</strong>) does not have permission to view this section.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
