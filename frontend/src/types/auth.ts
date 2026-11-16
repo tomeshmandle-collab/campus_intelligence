@@ -12,7 +12,7 @@ export interface User {
   id: string;
   email: string;
   full_name?: string | null;
-  role: UserRole | string;
+  role: UserRole;
   department?: string | null;
   created_at?: string;
 }

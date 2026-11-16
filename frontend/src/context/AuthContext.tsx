@@ -106,7 +106,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           id: data.id || 'backend-user',
           email: data.email || trimmedEmail,
           full_name: data.full_name || null,
-          role: data.role || 'uploader',
+          role: (data.role as UserRole) || 'uploader',
         };
 
         if (!token) {
@@ -125,7 +125,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             status?: number;
             data?: {
               error?: { message?: string };
-              detail?: string;
+              detail?: string | Array<{ msg?: string }>;
             };
           };
           message?: string;
@@ -134,11 +134,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         const backendMessage =
           errorObj.response?.data?.error?.message ||
-          errorObj.response?.data?.detail;
-
-        if (backendMessage) {
-          throw new Error(backendMessage);
-        }
+          (typeof errorObj.response?.data?.detail === 'string'
+            ? errorObj.response.data.detail
+            : Array.isArray(errorObj.response?.data?.detail)
+            ? errorObj.response?.data?.detail[0]?.msg
+            : undefined) ||
+          errorObj.message;
 
         if (
           errorObj.code === 'ERR_NETWORK' ||
@@ -150,7 +151,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           );
         }
 
-        throw new Error(errorObj.message || 'Authentication failed. Please check your credentials.');
+        if (backendMessage) {
+          throw new Error(backendMessage);
+        }
+
+        throw new Error('Authentication failed. Please check your credentials.');
       }
     },
     [updateAuthHeader]
