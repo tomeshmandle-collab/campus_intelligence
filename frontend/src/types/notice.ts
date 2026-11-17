@@ -104,3 +104,49 @@ export interface NoticeFilterParams {
   limit?: number;
   offset?: number;
 }
+
+/**
+ * Error report types per docs/API_CONTRACTS.md §7.8 and Issue P3-4
+ */
+export type ErrorReportReason =
+  | 'Incorrect Date'
+  | 'Wrong Audience'
+  | 'Typo in Summary'
+  | 'Document Unreadable'
+  | 'Other';
+
+export type ErrorReportIssueType =
+  | 'incorrect_information'
+  | 'broken_link_or_file'
+  | 'missing_dates_or_details'
+  | 'duplicate_notice'
+  | 'other';
+
+export const ERROR_REPORT_REASONS: readonly ErrorReportReason[] = [
+  'Incorrect Date',
+  'Wrong Audience',
+  'Typo in Summary',
+  'Document Unreadable',
+  'Other',
+] as const;
+
+export const REASON_TO_ISSUE_TYPE: Record<ErrorReportReason, ErrorReportIssueType> = {
+  'Incorrect Date': 'incorrect_information',
+  'Wrong Audience': 'incorrect_information',
+  'Typo in Summary': 'incorrect_information',
+  'Document Unreadable': 'broken_link_or_file',
+  'Other': 'other',
+};
+
+export interface ErrorReportRequest {
+  issue_type: ErrorReportIssueType | string;
+  description: string;
+  reporter_email?: string;
+  reason?: ErrorReportReason | string;
+}
+
+export interface ErrorReportResponse {
+  report_id: string;
+  status: 'received' | string;
+}
+

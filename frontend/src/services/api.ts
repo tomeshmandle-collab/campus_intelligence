@@ -3,6 +3,8 @@ import {
   NoticeListResponse,
   NoticeFilterParams,
   NoticeDetailResponse,
+  ErrorReportRequest,
+  ErrorReportResponse,
 } from '../types/notice';
 
 export interface HealthResponse {
@@ -75,6 +77,36 @@ export async function fetchNotices(params?: NoticeFilterParams): Promise<NoticeL
 export async function fetchNoticeById(id: string): Promise<NoticeDetailResponse> {
   const response = await apiClient.get<NoticeDetailResponse>(`/notices/${id}`);
   return response.data;
+}
+
+/**
+ * Submit an error report for a notice per docs/API_CONTRACTS.md §7.8.
+ * Endpoint: POST /api/v1/notices/{id}/reports
+ */
+export async function submitErrorReport(
+  noticeId: string,
+  payload: ErrorReportRequest
+): Promise<ErrorReportResponse> {
+  const response = await apiClient.post<ErrorReportResponse>(
+    `/notices/${noticeId}/reports`,
+    payload
+  );
+  return response.data;
+}
+
+/**
+ * Mock helper for submitting error reports in offline / preview environments.
+ */
+export async function mockSubmitErrorReport(
+  _noticeId: string,
+  _payload: ErrorReportRequest
+): Promise<ErrorReportResponse> {
+  // Simulate network latency
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  return {
+    report_id: `rep_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
+    status: 'received',
+  };
 }
 
 export const api = apiClient;
