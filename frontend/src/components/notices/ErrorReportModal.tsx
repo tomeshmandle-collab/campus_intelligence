@@ -130,13 +130,13 @@ export const ErrorReportModal: React.FC<ErrorReportModalProps> = ({
 
     setIsSubmitting(true);
 
+    const descriptionContent = reporterEmail.trim()
+      ? `${explanation.trim()}\n\n[Reporter Contact: ${reporterEmail.trim()}]`
+      : explanation.trim();
+
     const payload: ErrorReportRequest = {
       issue_type: reason ? REASON_TO_ISSUE_TYPE[reason] : 'other',
-      description: reporterEmail.trim()
-        ? `${explanation.trim()}\n\n[Contact: ${reporterEmail.trim()}]`
-        : explanation.trim(),
-      reporter_email: reporterEmail.trim() || undefined,
-      reason: reason || undefined,
+      description: descriptionContent,
     };
 
     try {

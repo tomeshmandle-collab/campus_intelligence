@@ -141,8 +141,6 @@ export const REASON_TO_ISSUE_TYPE: Record<ErrorReportReason, ErrorReportIssueTyp
 export interface ErrorReportRequest {
   issue_type: ErrorReportIssueType | string;
   description: string;
-  reporter_email?: string;
-  reason?: ErrorReportReason | string;
 }
 
 export interface ErrorReportResponse {
