@@ -1,5 +1,9 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { NoticeListResponse, NoticeFilterParams } from '../types/notice';
+import {
+  NoticeListResponse,
+  NoticeFilterParams,
+  NoticeDetailResponse,
+} from '../types/notice';
 
 export interface HealthResponse {
   status: string;
@@ -62,6 +66,14 @@ export async function checkHealth(): Promise<HealthResponse> {
  */
 export async function fetchNotices(params?: NoticeFilterParams): Promise<NoticeListResponse> {
   const response = await apiClient.get<NoticeListResponse>('/notices', { params });
+  return response.data;
+}
+
+/**
+ * Fetch notice detail by ID per docs/API_CONTRACTS.md §7.5.
+ */
+export async function fetchNoticeById(id: string): Promise<NoticeDetailResponse> {
+  const response = await apiClient.get<NoticeDetailResponse>(`/notices/${id}`);
   return response.data;
 }
 
