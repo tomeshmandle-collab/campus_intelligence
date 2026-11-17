@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { checkHealth, HealthResponse } from './services/api';
 import { PublicLayout } from './components/layout';
 import { NoticeFeed, ErrorReportModal } from './components/notices';
-import { NoticeDetailPage } from './pages/public';
+import { NoticeDetailPage, SearchAndAskPage } from './pages/public';
 import { NoticeDetail } from './types/notice';
 
 export const App: React.FC = () => {
@@ -48,12 +48,17 @@ export const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Determine current route: Notice Detail vs Notice Feed
+  // Determine current route: Notice Detail vs Search & Ask vs Notice Feed
   const noticeDetailMatch = currentPath.match(/^\/notices\/([a-zA-Z0-9_-]+)/);
   const activeNoticeId = noticeDetailMatch ? noticeDetailMatch[1] : null;
+  const isSearchAndAsk =
+    currentPath === '/search' ||
+    currentPath.startsWith('/search') ||
+    currentPath === '/ask';
+  const initialSearchTab: 'search' | 'ask' = currentPath === '/ask' ? 'ask' : 'search';
 
   return (
-    <PublicLayout currentPath={currentPath}>
+    <PublicLayout currentPath={currentPath} onNavigate={navigate}>
       <div className="space-y-8 pb-10">
         {/* Conditional Page Content */}
         {activeNoticeId ? (
@@ -62,6 +67,12 @@ export const App: React.FC = () => {
             onBack={() => navigate('/notices')}
             onNavigateNotice={(targetId) => navigate(`/notices/${targetId}`)}
             onReportIssue={(targetNotice) => setReportedNotice(targetNotice)}
+          />
+        ) : isSearchAndAsk ? (
+          <SearchAndAskPage
+            initialTab={initialSearchTab}
+            onNoticeSelect={(targetId) => navigate(`/notices/${targetId}`)}
+            isMockMode={!health}
           />
         ) : (
           <>

@@ -148,3 +148,58 @@ export interface ErrorReportResponse {
   status: 'received' | string;
 }
 
+/**
+ * Search types per docs/API_CONTRACTS.md §7.6
+ */
+export interface SearchResultNotice {
+  id: string;
+  title: string;
+  summary: string;
+  relationship_status: RelationshipStatus;
+}
+
+export interface SearchResultItem {
+  notice: SearchResultNotice;
+  matched_text: string;
+  source_page: number | null;
+  match_type: 'keyword' | string;
+}
+
+export interface SearchResponse {
+  query: string;
+  items: SearchResultItem[];
+  pagination: NoticeListPagination;
+}
+
+export interface SearchParams {
+  q: string;
+  audience?: AudienceType;
+  category?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * Ask Q&A types per docs/API_CONTRACTS.md §7.7
+ */
+export type AskStatus = 'answered' | 'uncertain' | 'not_found';
+export type ConfidenceLevel = 'high' | 'uncertain' | 'not_found';
+
+export interface Citation {
+  notice_id: string;
+  notice_title: string;
+  page: number;
+  excerpt: string;
+}
+
+export interface AskRequest {
+  question: string;
+  audience?: AudienceType;
+}
+
+export interface AskResponse {
+  answer: string;
+  status: AskStatus;
+  citations: Citation[];
+}
+

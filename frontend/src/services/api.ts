@@ -5,7 +5,12 @@ import {
   NoticeDetailResponse,
   ErrorReportRequest,
   ErrorReportResponse,
+  SearchParams,
+  SearchResponse,
+  AskRequest,
+  AskResponse,
 } from '../types/notice';
+import { searchMockNotices, askMockQuestion } from '../mocks/mockNotices';
 
 export interface HealthResponse {
   status: string;
@@ -107,6 +112,40 @@ export async function mockSubmitErrorReport(
     report_id: `rep_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
     status: 'received',
   };
+}
+
+/**
+ * Search published notices per docs/API_CONTRACTS.md §7.6.
+ * Endpoint: GET /api/v1/search?q=...
+ */
+export async function searchNotices(params: SearchParams): Promise<SearchResponse> {
+  const response = await apiClient.get<SearchResponse>('/search', { params });
+  return response.data;
+}
+
+/**
+ * Mock helper for keyword search when backend is offline.
+ */
+export async function mockSearchNotices(params: SearchParams): Promise<SearchResponse> {
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  return searchMockNotices(params);
+}
+
+/**
+ * Ask a grounded question per docs/API_CONTRACTS.md §7.7.
+ * Endpoint: POST /api/v1/ask
+ */
+export async function askQuestion(payload: AskRequest): Promise<AskResponse> {
+  const response = await apiClient.post<AskResponse>('/ask', payload);
+  return response.data;
+}
+
+/**
+ * Mock helper for Ask Q&A when backend is offline.
+ */
+export async function mockAskQuestion(payload: AskRequest): Promise<AskResponse> {
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  return askMockQuestion(payload);
 }
 
 export const api = apiClient;

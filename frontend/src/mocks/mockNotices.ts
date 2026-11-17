@@ -1,4 +1,12 @@
-import { Notice, NoticeDetail } from '../types/notice';
+import {
+  Notice,
+  NoticeDetail,
+  SearchResponse,
+  SearchResultItem,
+  AskResponse,
+  AskRequest,
+  SearchParams,
+} from '../types/notice';
 
 /**
  * 6 Realistic mock notices for Kirori Mal College (CAI Campus Intelligence)
@@ -463,5 +471,239 @@ export function getMockNoticeDetail(id: string): NoticeDetail | undefined {
       page_count: base.source_page_count,
     },
     published_at: `${base.publication_date}T10:00:00Z`,
+  };
+}
+
+/**
+ * Mock search handler adhering to docs/API_CONTRACTS.md §7.6
+ */
+export function searchMockNotices(params: SearchParams): SearchResponse {
+  const query = (params.q || '').trim().toLowerCase();
+  const audienceFilter = params.audience && params.audience !== 'all' ? params.audience : undefined;
+  const categoryFilter = params.category && params.category !== 'all' ? params.category : undefined;
+
+  const queryTerms = query.split(/\s+/).filter((t) => t.length > 0);
+
+  if (queryTerms.length === 0) {
+    return {
+      query: params.q || '',
+      items: [],
+      pagination: {
+        limit: params.limit || 20,
+        offset: params.offset || 0,
+        total: 0,
+        has_more: false,
+      },
+    };
+  }
+
+  const matchedItems: SearchResultItem[] = [];
+
+  for (const notice of mockNotices) {
+    // Check audience filter
+    if (audienceFilter && notice.audience !== 'all' && notice.audience !== audienceFilter) {
+      continue;
+    }
+    // Check category filter
+    if (categoryFilter && notice.category.toLowerCase() !== categoryFilter.toLowerCase()) {
+      continue;
+    }
+
+    const detail = mockNoticeDetails[notice.id];
+    const fullText = `${notice.title} ${notice.summary_snippet} ${detail ? detail.summary : ''}`.toLowerCase();
+
+    // Check if any query term matches
+    const hasMatch = queryTerms.some((term) => fullText.includes(term));
+    if (hasMatch) {
+      // Find the best snippet
+      let matchedText = notice.summary_snippet;
+      if (detail && detail.summary) {
+        const sentences = detail.summary.split(/\. |\.\n/);
+        const matchSentence = sentences.find((s) =>
+          queryTerms.some((term) => s.toLowerCase().includes(term))
+        );
+        if (matchSentence) {
+          matchedText = matchSentence.trim() + '.';
+        }
+      }
+
+      matchedItems.push({
+        notice: {
+          id: notice.id,
+          title: notice.title,
+          summary: notice.summary_snippet,
+          relationship_status: 'current',
+        },
+        matched_text: matchedText,
+        source_page: 1,
+        match_type: 'keyword',
+      });
+    }
+  }
+
+  return {
+    query: params.q,
+    items: matchedItems,
+    pagination: {
+      limit: params.limit || 20,
+      offset: params.offset || 0,
+      total: matchedItems.length,
+      has_more: false,
+    },
+  };
+}
+
+/**
+ * Mock Q&A handler adhering to docs/API_CONTRACTS.md §7.7
+ */
+export function askMockQuestion(payload: AskRequest): AskResponse {
+  const q = (payload.question || '').toLowerCase();
+
+  if (q.includes('exam') || q.includes('fee') || q.includes('portal') || q.includes('hall ticket')) {
+    return {
+      answer:
+        'All regular students appearing for odd semester examinations (Semesters III and V) must clear outstanding fee dues via the college online payment portal by 18 November 2026 to generate their hall tickets.',
+      status: 'answered',
+      citations: [
+        {
+          notice_id: 'notif-exam-2026-002',
+          notice_title:
+            'Urgent: Submission of Examination Fees & Portal Clearance for Semesters III and V',
+          page: 1,
+          excerpt:
+            'All regular students appearing for odd semester examinations must clear outstanding fee dues via the college online payment gateway to generate their hall tickets. Deadline for clearance is 18 November 2026.',
+        },
+      ],
+    };
+  }
+
+  if (
+    q.includes('pg') ||
+    q.includes('postgraduate') ||
+    q.includes('admission') ||
+    q.includes('round 2') ||
+    q.includes('verification') ||
+    q.includes('room 102')
+  ) {
+    return {
+      answer:
+        'Shortlisted candidates for Postgraduate (MA, M.Sc, M.Com) admissions must report for physical document verification in Room 102 (Administrative Wing) between 10:00 AM and 4:00 PM on working days before 20 November 2026.',
+      status: 'answered',
+      citations: [
+        {
+          notice_id: 'notif-adm-2026-001',
+          notice_title:
+            'Postgraduate Admissions 2026-27: Round 2 Seat Allocation & Physical Document Verification',
+          page: 1,
+          excerpt:
+            'Shortlisted candidates for PG courses must report to Room 102 with original mark sheets, CUET scorecards, and fee receipts before the closing hour. Verification deadline: 20 November 2026.',
+        },
+      ],
+    };
+  }
+
+  if (q.includes('scholarship') || q.includes('income') || q.includes('merit')) {
+    return {
+      answer:
+        'Eligible undergraduate students with annual family income below INR 2.5 Lakhs can submit the Merit-Cum-Means Scholarship application form with self-attested income certificate and fee receipts at Counter 4 by 25 November 2026.',
+      status: 'answered',
+      citations: [
+        {
+          notice_id: 'notif-sch-2026-004',
+          notice_title:
+            'Merit-Cum-Means Scholarship 2026: Application Guidelines & Family Income Certificate Verification',
+          page: 1,
+          excerpt:
+            'Eligible undergraduate students with annual family income below INR 2.5 Lakhs can submit the prescribed application form along with self-attested supporting documents at Counter 4 by 25 November 2026.',
+        },
+      ],
+    };
+  }
+
+  if (
+    q.includes('sport') ||
+    q.includes('athletic') ||
+    q.includes('trial') ||
+    q.includes('badminton') ||
+    q.includes('football')
+  ) {
+    return {
+      answer:
+        'Selection trials for athletics, football, and badminton are being organized by the Department of Physical Education at the college sports ground for the Annual Inter-College Sports Meet 2026.',
+      status: 'answered',
+      citations: [
+        {
+          notice_id: 'notif-gen-2026-003',
+          notice_title:
+            'Annual Inter-College Sports & Athletics Meet 2026: Team Trials and Registration',
+          page: 1,
+          excerpt:
+            'The Department of Physical Education invites interested students to participate in selection trials for athletics, football, and badminton at the college sports ground.',
+        },
+      ],
+    };
+  }
+
+  if (q.includes('fdp') || q.includes('faculty') || q.includes('workshop') || q.includes('pedagogy')) {
+    return {
+      answer:
+        'The Centre for Artificial Intelligence is conducting a one-week Faculty Development Programme on AI and Digital Pedagogy from 12 November to 30 November 2026 for college faculty members.',
+      status: 'answered',
+      citations: [
+        {
+          notice_id: 'notif-fac-2026-005',
+          notice_title:
+            'One-Week Faculty Development Programme (FDP) on Artificial Intelligence and Digital Pedagogy',
+          page: 1,
+          excerpt:
+            'Organised by the Centre for Artificial Intelligence, this workshop equips faculty members with generative AI research workflows and modern syllabus design methods.',
+        },
+      ],
+    };
+  }
+
+  if (
+    q.includes('power') ||
+    q.includes('electricity') ||
+    q.includes('maintenance') ||
+    q.includes('shutdown')
+  ) {
+    return {
+      answer:
+        'A scheduled electrical substation maintenance will cause power interruption in the administrative and laboratory blocks on Saturday between 10:00 AM and 2:00 PM.',
+      status: 'answered',
+      citations: [
+        {
+          notice_id: 'notif-stf-2026-006',
+          notice_title:
+            'Campus Electrical Substation Maintenance and Scheduled Power Interruption Circular',
+          page: 1,
+          excerpt:
+            'Essential electrical servicing will take place on Saturday between 10:00 AM and 2:00 PM affecting the administrative block and laboratory wings.',
+        },
+      ],
+    };
+  }
+
+  if (q.includes('conflict') || q.includes('uncertain') || q.includes('fest') || q.includes('holiday')) {
+    return {
+      answer:
+        'The available notices do not give a consistent answer to this question, as multiple conflicting circulars or provisional dates were issued.',
+      status: 'uncertain',
+      citations: [
+        {
+          notice_id: 'notif-gen-2026-003',
+          notice_title: 'Annual Inter-College Sports & Athletics Meet 2026: Team Trials and Registration',
+          page: 1,
+          excerpt: 'Provisional dates are subject to University sports council confirmation.',
+        },
+      ],
+    };
+  }
+
+  return {
+    answer: 'I could not find this information in the available published notices.',
+    status: 'not_found',
+    citations: [],
   };
 }
