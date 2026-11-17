@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { NoticeListResponse, NoticeFilterParams } from '../types/notice';
 
 export interface HealthResponse {
   status: string;
@@ -53,6 +54,14 @@ apiClient.interceptors.response.use(
  */
 export async function checkHealth(): Promise<HealthResponse> {
   const response = await apiClient.get<HealthResponse>('/health');
+  return response.data;
+}
+
+/**
+ * Fetch published notices from backend /notices endpoint per docs/API_CONTRACTS.md §7.4.
+ */
+export async function fetchNotices(params?: NoticeFilterParams): Promise<NoticeListResponse> {
+  const response = await apiClient.get<NoticeListResponse>('/notices', { params });
   return response.data;
 }
 
