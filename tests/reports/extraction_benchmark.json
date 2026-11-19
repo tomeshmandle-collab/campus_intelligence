@@ -1,0 +1,487 @@
+{
+  "benchmark_timestamp": "2026-11-19T21:21:41.957713",
+  "extractor_source": "builtin_reference_adapter (pre-L5)",
+  "summary": {
+    "total_notices": 16,
+    "page_preservation_accuracy_pct": 100.0,
+    "scanned_detection_accuracy_pct": 100.0,
+    "average_keyword_recall_pct": 100.0,
+    "overall_benchmark_passed": true
+  },
+  "robustness_simulations": {
+    "empty_file_handled_gracefully": true,
+    "corrupt_file_handled_gracefully": true,
+    "empty_error_message": "Empty PDF file (0 bytes)",
+    "corrupt_error_message": "Malformed PDF: missing %%EOF trailer"
+  },
+  "notice_results": [
+    {
+      "filename": "notice_01_admissions_schedule.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 1,
+      "extracted_pages": 1,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "admission",
+        "post",
+        "graduate",
+        "courses"
+      ],
+      "keywords_matched": [
+        "admission",
+        "post",
+        "graduate",
+        "courses"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 644,
+      "avg_chars_per_page": 644.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_02_exam_fee_submission.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 2,
+      "extracted_pages": 2,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "submission",
+        "examination",
+        "fees",
+        "semester"
+      ],
+      "keywords_matched": [
+        "submission",
+        "examination",
+        "fees",
+        "semester"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 1267,
+      "avg_chars_per_page": 633.5,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_03_annual_sports_day.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 1,
+      "extracted_pages": 1,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "inter-college",
+        "sports",
+        "meet"
+      ],
+      "keywords_matched": [
+        "inter-college",
+        "sports",
+        "meet"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 547,
+      "avg_chars_per_page": 547.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_04_merit_scholarship_guidelines.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 3,
+      "extracted_pages": 3,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "merit-cum-means",
+        "scholarship",
+        "application",
+        "guidelines"
+      ],
+      "keywords_matched": [
+        "merit-cum-means",
+        "scholarship",
+        "application",
+        "guidelines"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 1946,
+      "avg_chars_per_page": 648.7,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_05_faculty_development_programme.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 1,
+      "extracted_pages": 1,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "one-week",
+        "faculty",
+        "development",
+        "programme",
+        "pedagogy"
+      ],
+      "keywords_matched": [
+        "one-week",
+        "faculty",
+        "development",
+        "programme",
+        "pedagogy"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 648,
+      "avg_chars_per_page": 648.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_06_staff_welfare_meeting.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 1,
+      "extracted_pages": 1,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "meeting",
+        "non-teaching",
+        "staff",
+        "welfare",
+        "committee"
+      ],
+      "keywords_matched": [
+        "meeting",
+        "non-teaching",
+        "staff",
+        "welfare",
+        "committee"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 552,
+      "avg_chars_per_page": 552.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_07_library_book_return.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 1,
+      "extracted_pages": 1,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "grace",
+        "period",
+        "return",
+        "overdue",
+        "library",
+        "books"
+      ],
+      "keywords_matched": [
+        "grace",
+        "period",
+        "return",
+        "overdue",
+        "library",
+        "books"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 637,
+      "avg_chars_per_page": 637.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_08_campus_maintenance_schedule.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 1,
+      "extracted_pages": 1,
+      "page_count_match": true,
+      "expected_is_scanned": true,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "campus",
+        "electrical",
+        "substation",
+        "maintenance",
+        "power",
+        "shutdown"
+      ],
+      "keywords_matched": [
+        "campus",
+        "electrical",
+        "substation",
+        "maintenance",
+        "power",
+        "shutdown"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 565,
+      "avg_chars_per_page": 565.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_09_national_holiday_circular.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 1,
+      "extracted_pages": 1,
+      "page_count_match": true,
+      "expected_is_scanned": true,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "holiday",
+        "account",
+        "national",
+        "observance"
+      ],
+      "keywords_matched": [
+        "holiday",
+        "account",
+        "national",
+        "observance"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 569,
+      "avg_chars_per_page": 569.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_10_hostel_allotment_guidelines.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 4,
+      "extracted_pages": 4,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "hostel",
+        "seat",
+        "allotment",
+        "list",
+        "mess",
+        "payment"
+      ],
+      "keywords_matched": [
+        "hostel",
+        "seat",
+        "allotment",
+        "list",
+        "mess",
+        "payment"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 2563,
+      "avg_chars_per_page": 640.8,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_11_extension_exam_form_deadline.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 1,
+      "extracted_pages": 1,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "extension",
+        "last",
+        "online",
+        "examination",
+        "form",
+        "submission"
+      ],
+      "keywords_matched": [
+        "extension",
+        "last",
+        "online",
+        "examination",
+        "form",
+        "submission"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 678,
+      "avg_chars_per_page": 678.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_12_anti_ragging_committee.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 2,
+      "extracted_pages": 2,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "constitution",
+        "anti-ragging",
+        "committee",
+        "squad"
+      ],
+      "keywords_matched": [
+        "constitution",
+        "anti-ragging",
+        "committee",
+        "squad"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 1194,
+      "avg_chars_per_page": 597.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_13_water_supply_interruption.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 1,
+      "extracted_pages": 1,
+      "page_count_match": true,
+      "expected_is_scanned": true,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "urgent",
+        "water",
+        "supply",
+        "interruption"
+      ],
+      "keywords_matched": [
+        "urgent",
+        "water",
+        "supply",
+        "interruption"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 581,
+      "avg_chars_per_page": 581.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_14_research_methodology_workshop.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 2,
+      "extracted_pages": 2,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "two-day",
+        "hands-on",
+        "workshop",
+        "research",
+        "methodology"
+      ],
+      "keywords_matched": [
+        "two-day",
+        "hands-on",
+        "workshop",
+        "research",
+        "methodology"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 1267,
+      "avg_chars_per_page": 633.5,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_15_grievance_cell_constitution.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 1,
+      "extracted_pages": 1,
+      "page_count_match": true,
+      "expected_is_scanned": false,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "notification",
+        "student",
+        "grievance",
+        "redressal",
+        "committee"
+      ],
+      "keywords_matched": [
+        "notification",
+        "student",
+        "grievance",
+        "redressal",
+        "committee"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 602,
+      "avg_chars_per_page": 602.0,
+      "overall_pass": true
+    },
+    {
+      "filename": "notice_16_canteen_tender_invitation.pdf",
+      "success": true,
+      "error": null,
+      "expected_pages": 2,
+      "extracted_pages": 2,
+      "page_count_match": true,
+      "expected_is_scanned": true,
+      "detected_is_scanned": false,
+      "scanned_match": true,
+      "keywords_expected": [
+        "tender",
+        "canteen",
+        "operations"
+      ],
+      "keywords_matched": [
+        "tender",
+        "canteen",
+        "operations"
+      ],
+      "keyword_recall_pct": 100.0,
+      "keyword_pass": true,
+      "char_count_total": 1305,
+      "avg_chars_per_page": 652.5,
+      "overall_pass": true
+    }
+  ]
+}
