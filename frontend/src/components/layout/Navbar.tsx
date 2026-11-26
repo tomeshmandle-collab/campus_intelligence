@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 
 export interface NavbarProps {
   currentPath?: string;
+  onNavigate?: (path: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentPath = '/' }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentPath = '/', onNavigate }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Prevent background scrolling when mobile drawer is open
@@ -44,6 +45,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath = '/' }) => {
           <div className="flex items-center">
             <a
               href="/"
+              onClick={(e) => {
+                if (onNavigate) {
+                  e.preventDefault();
+                  onNavigate('/');
+                }
+              }}
               className="flex items-center space-x-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg p-1 -m-1"
               aria-label="CAI Campus Intelligence — Kirori Mal College Home"
             >
@@ -86,11 +93,19 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath = '/' }) => {
           {/* Desktop Navigation Links */}
           <nav className="hidden md:flex items-center space-x-1" aria-label="Main Navigation">
             {navLinks.map((link) => {
-              const isActive = currentPath === link.href;
+              const isActive =
+                currentPath === link.href ||
+                (link.href === '/search' && (currentPath === '/ask' || currentPath.startsWith('/search')));
               return (
                 <a
                   key={link.name}
                   href={link.href}
+                  onClick={(e) => {
+                    if (onNavigate) {
+                      e.preventDefault();
+                      onNavigate(link.href);
+                    }
+                  }}
                   className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-slate-100 text-indigo-700 font-semibold'
@@ -217,12 +232,20 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath = '/' }) => {
               {/* Navigation Links inside Drawer */}
               <nav className="mt-6 space-y-1.5" aria-label="Mobile Navigation">
                 {navLinks.map((link) => {
-                  const isActive = currentPath === link.href;
+                  const isActive =
+                    currentPath === link.href ||
+                    (link.href === '/search' && (currentPath === '/ask' || currentPath.startsWith('/search')));
                   return (
                     <a
                       key={link.name}
                       href={link.href}
-                      onClick={() => setMobileMenuOpen(false)}
+                      onClick={(e) => {
+                        setMobileMenuOpen(false);
+                        if (onNavigate) {
+                          e.preventDefault();
+                          onNavigate(link.href);
+                        }
+                      }}
                       className={`flex items-center px-4 py-3 rounded-lg text-base font-medium transition-colors ${
                         isActive
                           ? 'bg-indigo-50 text-indigo-700 font-semibold'
