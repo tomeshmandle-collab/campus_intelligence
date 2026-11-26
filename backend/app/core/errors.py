@@ -56,6 +56,8 @@ async def http_exception_handler(
     # Status 422 compatibility (HTTP_422_UNPROCESSABLE_CONTENT in newer starlette)
     http_422 = getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422)
 
+    http_413 = getattr(status, "HTTP_413_CONTENT_TOO_LARGE", 413)
+
     status_code_map = {
         status.HTTP_400_BAD_REQUEST: "BAD_REQUEST",
         status.HTTP_401_UNAUTHORIZED: "UNAUTHORIZED",
@@ -63,10 +65,15 @@ async def http_exception_handler(
         status.HTTP_404_NOT_FOUND: "NOT_FOUND",
         status.HTTP_405_METHOD_NOT_ALLOWED: "METHOD_NOT_ALLOWED",
         status.HTTP_409_CONFLICT: "CONFLICT",
+        413: "PAYLOAD_TOO_LARGE",
+        http_413: "PAYLOAD_TOO_LARGE",
+        status.HTTP_415_UNSUPPORTED_MEDIA_TYPE: "UNSUPPORTED_MEDIA_TYPE",
         422: "VALIDATION_ERROR",
         http_422: "VALIDATION_ERROR",
         status.HTTP_429_TOO_MANY_REQUESTS: "RATE_LIMITED",
         status.HTTP_500_INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+        status.HTTP_502_BAD_GATEWAY: "BAD_GATEWAY",
+        status.HTTP_503_SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
     }
 
     code = status_code_map.get(exc.status_code, f"HTTP_{exc.status_code}")
