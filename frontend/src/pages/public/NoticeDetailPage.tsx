@@ -5,6 +5,7 @@ import {
 } from '../../types/notice';
 import { fetchNoticeById } from '../../services/api';
 import { getMockNoticeDetail } from '../../mocks/mockNotices';
+import { ErrorReportModal } from '../../components/notices';
 
 export interface NoticeDetailPageProps {
   noticeId: string;
@@ -112,6 +113,7 @@ export const NoticeDetailPage: React.FC<NoticeDetailPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isUsingMock, setIsUsingMock] = useState<boolean>(false);
   const [copyNoticeSuccess, setCopyNoticeSuccess] = useState<boolean>(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -528,7 +530,7 @@ export const NoticeDetailPage: React.FC<NoticeDetailPageProps> = ({
 
             <button
               type="button"
-              onClick={() => onReportIssue?.(notice)}
+              onClick={() => (onReportIssue ? onReportIssue(notice) : setIsReportModalOpen(true))}
               className="shrink-0 inline-flex items-center px-3.5 py-2 border border-slate-300 text-xs font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors shadow-xs"
             >
               Report an Issue
@@ -717,6 +719,15 @@ export const NoticeDetailPage: React.FC<NoticeDetailPageProps> = ({
           </section>
         </div>
       </div>
+      {/* Self-contained modal fallback when onReportIssue is not provided by parent */}
+      {!onReportIssue && notice && (
+        <ErrorReportModal
+          isOpen={isReportModalOpen}
+          notice={notice}
+          onClose={() => setIsReportModalOpen(false)}
+          isMockMode={isUsingMock}
+        />
+      )}
     </article>
   );
 };

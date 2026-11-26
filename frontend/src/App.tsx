@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { checkHealth, HealthResponse } from './services/api';
 import { PublicLayout } from './components/layout';
-import { NoticeFeed } from './components/notices';
+import { NoticeFeed, ErrorReportModal } from './components/notices';
 import { NoticeDetailPage } from './pages/public';
 import { NoticeDetail } from './types/notice';
 
@@ -113,43 +113,13 @@ export const App: React.FC = () => {
           </>
         )}
 
-        {/* Temporary Feedback Dialog for Issue Reporting (previews Issue P3-4) */}
-        {reportedNotice && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
-          >
-            <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="font-bold text-slate-900 text-base">Report an Issue with Notice</h3>
-                <button
-                  type="button"
-                  onClick={() => setReportedNotice(null)}
-                  className="text-slate-400 hover:text-slate-600 text-lg leading-none"
-                >
-                  &times;
-                </button>
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                You are reporting an issue for: <br />
-                <strong className="text-slate-800">{reportedNotice.title}</strong> (ID: {reportedNotice.id})
-              </p>
-              <div className="rounded-lg bg-indigo-50/70 p-3 text-xs text-indigo-900 border border-indigo-100">
-                The full Issue Reporting Modal will be integrated in <strong>Issue P3-4</strong> per the project roadmap.
-              </div>
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => setReportedNotice(null)}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Public Error Report Form Modal (Issue P3-4) */}
+        <ErrorReportModal
+          isOpen={!!reportedNotice}
+          notice={reportedNotice}
+          onClose={() => setReportedNotice(null)}
+          isMockMode={!health}
+        />
       </div>
     </PublicLayout>
   );
