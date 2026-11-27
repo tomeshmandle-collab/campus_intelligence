@@ -594,6 +594,43 @@ def _prepare_extraction_outcome(
     return outcome, payload
 
 
+def _build_field_source_rows(
+    extraction: NoticeExtractionSchema,
+    pages: Sequence[ExtractedPage],
+) -> List[Dict[str, Any]]:
+    """Build field_sources rows from extracted fields and field_evidence."""
+    page_text_map = {page.page_number: page.extracted_text for page in pages}
+    field_values = {
+        "title": extraction.title,
+        "notice_date": extraction.notice_date.isoformat() if extraction.notice_date else None,
+        "deadline_date": (
+            extraction.deadline_date.isoformat() if extraction.deadline_date else None
+        ),
+        "audience": extraction.audience,
+        "category": extraction.category,
+        "summary": extraction.summary,
+    }
+    rows: List[Dict[str, Any]] = []
+    for field_name, evidence in extraction.field_evidence.items():
+        page_text = page_text_map.get(evidence.page_number, "")
+        verified = bool(
+            page_text and _quote_supported_on_page(evidence.quote, page_text)
+        )
+        rows.append(
+            {
+                "field_name": field_name,
+                "value_text": field_values.get(field_name),
+                "source_page": evidence.page_number,
+                "source_quote": evidence.quote,
+                "extraction_method": "ai",
+                "confidence": extraction.confidence,
+                "verified": verified,
+                "human_edited": False,
+            }
+        )
+    return rows
+
+
 def process_notice_extraction(
     notice_id: Optional[str],
     pages: Sequence[Union[ExtractedPage, Mapping[str, Any]]],
@@ -605,9 +642,10 @@ def process_notice_extraction(
 ) -> NoticeExtractionOutcome:
     """Extract, validate, and synchronously update the database notice record."""
     svc = supabase_service or (get_supabase_service() if notice_id is not None else None)
+    normalized_pages = _normalize_pages(pages)
     outcome, payload = _prepare_extraction_outcome(
         notice_id,
-        pages,
+        normalized_pages,
         supabase_service=svc,
         ocr_failed=ocr_failed,
         timeout_seconds=timeout_seconds,
@@ -615,6 +653,9 @@ def process_notice_extraction(
     )
     if notice_id is not None and svc is not None:
         svc.update_notice_sync(notice_id, payload)
+        if outcome.extraction is not None:
+            field_rows = _build_field_source_rows(outcome.extraction, normalized_pages)
+            svc.replace_ai_field_sources_sync(notice_id, field_rows)
     return outcome
 
 
@@ -629,13 +670,17 @@ async def extract_and_update_notice(
 ) -> NoticeExtractionOutcome:
     """Async wrapper for FastAPI pipelines to extract, validate, and update a notice."""
     svc = supabase_service or get_supabase_service()
+    normalized_pages = _normalize_pages(pages)
     outcome, payload = _prepare_extraction_outcome(
         notice_id,
-        pages,
+        normalized_pages,
         supabase_service=svc,
         ocr_failed=ocr_failed,
         timeout_seconds=timeout_seconds,
         confidence_threshold=confidence_threshold,
     )
     await svc.update_notice(notice_id, payload)
+    if outcome.extraction is not None:
+        field_rows = _build_field_source_rows(outcome.extraction, normalized_pages)
+        await svc.replace_ai_field_sources(notice_id, field_rows)
     return outcome
