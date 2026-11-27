@@ -1,14 +1,19 @@
+from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Deque, Dict, List, Optional
 
 from fastapi import HTTPException, status
 
+from app.core.config import settings
 from app.schemas.notices import (
     BriefingDateItem,
     BriefingRecentChangeItem,
     BriefingRelatedNoticeRef,
     BriefingResponse,
     BriefingSections,
+    ErrorReportCreateRequest,
+    ErrorReportCreateResponse,
     FilterOption,
     FilterOptionsResponse,
     PublicAudienceTarget,
@@ -375,3 +380,76 @@ async def get_public_notice_detail(
         updated_at=notice.get("updated_at"),
     )
     return PublicNoticeDetailResponse(notice=detail)
+
+
+class SlidingWindowRateLimiter:
+    """In-memory per-IP sliding-window rate limiter for public report submissions."""
+
+    def __init__(self) -> None:
+        self._requests: Dict[str, Deque[float]] = defaultdict(deque)
+
+    def reset(self) -> None:
+        self._requests.clear()
+
+    def check_and_record(
+        self,
+        client_ip: str,
+        *,
+        max_requests: Optional[int] = None,
+        window_seconds: Optional[int] = None,
+    ) -> None:
+        limit = (
+            max_requests
+            if max_requests is not None
+            else settings.REPORT_RATE_LIMIT_MAX_REQUESTS
+        )
+        window = (
+            window_seconds
+            if window_seconds is not None
+            else settings.REPORT_RATE_LIMIT_WINDOW_SECONDS
+        )
+        now = time.monotonic()
+        cutoff = now - window
+        timestamps = self._requests[client_ip]
+        while timestamps and timestamps[0] <= cutoff:
+            timestamps.popleft()
+        if len(timestamps) >= limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many error reports submitted. Please try again later.",
+            )
+        timestamps.append(now)
+
+
+report_rate_limiter = SlidingWindowRateLimiter()
+
+
+async def submit_public_error_report(
+    svc: SupabaseService,
+    notice_id: str,
+    payload: ErrorReportCreateRequest,
+    *,
+    client_ip: str,
+) -> ErrorReportCreateResponse:
+    """Rate-limit and submit a public error report for a published notice."""
+    report_rate_limiter.check_and_record(client_ip)
+
+    notice = await svc.get_notice(notice_id)
+    if notice is None or notice.get("publication_status") != "published":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notice not found.",
+        )
+
+    created = await svc.insert_error_report(
+        {
+            "notice_id": notice_id,
+            "issue_type": payload.issue_type,
+            "description": payload.description,
+            "status": "open",
+        }
+    )
+    return ErrorReportCreateResponse(
+        report_id=str(created["id"]),
+        status="received",
+    )

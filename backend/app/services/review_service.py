@@ -4,7 +4,11 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 
 from app.schemas.uploader import (
+    ErrorReportItem,
+    ErrorReportListResponse,
     FieldSourceItem,
+    ManagementNoticeItem,
+    ManagementNoticeListResponse,
     NoticeEditAuditItem,
     NoticeFieldsPatchRequest,
     NoticeFieldsPatchResponse,
@@ -13,6 +17,7 @@ from app.schemas.uploader import (
     PublishNoticeResponse,
     RelationItem,
     RelationshipActionResponse,
+    ResolveErrorReportResponse,
     RetryNoticeResponse,
     ReviewDetailResponse,
     ReviewNoticeSummary,
@@ -21,6 +26,7 @@ from app.schemas.uploader import (
     SourceFilePreview,
     ValidationIssue,
     ValidationSummary,
+    WithdrawNoticeResponse,
 )
 from app.services.supabase import SupabaseService
 
@@ -605,4 +611,170 @@ async def handle_relationship_action(
         outcome="confirmed",
         earlier_notice_id=earlier_id,
         earlier_relationship_status=earlier_rel_status,
+    )
+
+
+async def list_management_notices(
+    svc: SupabaseService,
+    *,
+    publication_status: Optional[str] = None,
+    processing_status: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> ManagementNoticeListResponse:
+    """List all notices regardless of publication status for staff management."""
+    rows, total = await svc.list_all_notices_for_management(
+        publication_status=publication_status,
+        processing_status=processing_status,
+        limit=limit,
+        offset=offset,
+    )
+    items = [
+        ManagementNoticeItem(
+            notice_id=str(row["id"]),
+            title=row.get("title"),
+            processing_status=row.get("processing_status", "pending"),
+            publication_status=row.get("publication_status", "held"),
+            relationship_status=row.get("relationship_status", "current"),
+            uploaded_at=row.get("uploaded_at") or row.get("created_at"),
+            published_at=row.get("published_at"),
+        )
+        for row in rows
+    ]
+    return ManagementNoticeListResponse(
+        items=items,
+        pagination=PaginationMeta(
+            limit=limit,
+            offset=offset,
+            total=total,
+            has_more=(offset + len(items)) < total,
+        ),
+    )
+
+
+async def withdraw_notice(
+    svc: SupabaseService,
+    notice_id: str,
+    *,
+    actor_id: str,
+    reason: str,
+) -> WithdrawNoticeResponse:
+    """Withdraw a held or published notice and preserve audit history."""
+    notice = await svc.get_notice(notice_id)
+    if notice is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notice not found.",
+        )
+
+    if notice.get("publication_status") == "withdrawn":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Notice is already withdrawn.",
+        )
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await svc.update_notice(
+        notice_id,
+        {
+            "publication_status": "withdrawn",
+            "withdrawn_at": now_iso,
+            "withdrawn_by": actor_id,
+            "withdrawal_reason": reason,
+            "updated_at": now_iso,
+        },
+    )
+    await svc.insert_processing_event(
+        notice_id,
+        step="withdrawal",
+        outcome="ok",
+        message=f"Withdrawn by {actor_id}: {reason}",
+    )
+
+    return WithdrawNoticeResponse(
+        notice_id=notice_id,
+        publication_status="withdrawn",
+        withdrawn_at=now_iso,
+    )
+
+
+async def list_uploader_reports(
+    svc: SupabaseService,
+    *,
+    report_status: Optional[str] = "open",
+    limit: int = 20,
+    offset: int = 0,
+) -> ErrorReportListResponse:
+    """List public error reports for uploader review per API_CONTRACTS.md §8.11."""
+    rows, total = await svc.list_error_reports(
+        report_status=report_status,
+        limit=limit,
+        offset=offset,
+    )
+    items: List[ErrorReportItem] = []
+    for row in rows:
+        notice_title = row.get("notice_title")
+        if notice_title is None and isinstance(row.get("notices"), dict):
+            notice_title = row["notices"].get("title")
+        items.append(
+            ErrorReportItem(
+                report_id=str(row["id"]),
+                notice_id=str(row["notice_id"]),
+                notice_title=notice_title,
+                issue_type=row["issue_type"],
+                description=row.get("description"),
+                status=row.get("status", "open"),
+                created_at=row.get("created_at"),
+                resolved_at=row.get("resolved_at"),
+                resolution_note=row.get("resolution_note"),
+            )
+        )
+    return ErrorReportListResponse(
+        items=items,
+        pagination=PaginationMeta(
+            limit=limit,
+            offset=offset,
+            total=total,
+            has_more=(offset + len(items)) < total,
+        ),
+    )
+
+
+async def resolve_or_dismiss_report(
+    svc: SupabaseService,
+    report_id: int,
+    *,
+    new_status: str,
+    actor_id: str,
+    resolution_note: Optional[str] = None,
+) -> ResolveErrorReportResponse:
+    """Resolve or dismiss an open error report without altering notice content."""
+    report = await svc.get_error_report(report_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Error report not found.",
+        )
+
+    if report.get("status") != "open":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Error report is already {report.get('status')}.",
+        )
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await svc.update_error_report(
+        report_id,
+        {
+            "status": new_status,
+            "resolved_by": actor_id,
+            "resolved_at": now_iso,
+            "resolution_note": resolution_note,
+        },
+    )
+
+    return ResolveErrorReportResponse(
+        report_id=str(report_id),
+        status=new_status,  # type: ignore[arg-type]
+        resolved_at=now_iso,
     )

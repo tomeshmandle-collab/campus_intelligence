@@ -7,25 +7,38 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Upload
 from app.core.auth import require_uploader
 from app.core.config import settings
 from app.schemas.uploader import (
+    ErrorReportListResponse,
+    ManagementNoticeListResponse,
     NoticeFieldsPatchRequest,
     NoticeFieldsPatchResponse,
+    ProcessingStatus,
+    PublicationStatus,
     PublishNoticeRequest,
     PublishNoticeResponse,
     RelationshipActionRequest,
     RelationshipActionResponse,
+    ReportStatus,
+    ResolveErrorReportRequest,
+    ResolveErrorReportResponse,
     RetryNoticeRequest,
     RetryNoticeResponse,
     ReviewDetailResponse,
     ReviewQueueResponse,
     UploadResponse,
+    WithdrawNoticeRequest,
+    WithdrawNoticeResponse,
 )
 from app.services.review_service import (
     get_review_detail,
     get_review_queue,
     handle_relationship_action,
+    list_management_notices,
+    list_uploader_reports,
     patch_notice_fields,
     publish_reviewed_notice,
+    resolve_or_dismiss_report,
     retry_notice_processing,
+    withdraw_notice,
 )
 from app.services.supabase import SupabaseService, get_supabase_service
 
@@ -290,4 +303,93 @@ async def confirm_notice_relationship_alias_endpoint(
         action=action,
         actor_id=str(current_user["id"]),
         expected_notice_id=notice_id,
+    )
+
+
+@router.get(
+    "/uploader/notices",
+    response_model=ManagementNoticeListResponse,
+    summary="List all notices for staff management",
+    description="Return paginated notices across all publication and processing statuses per API_CONTRACTS.md §8.10.",
+)
+async def list_management_notices_endpoint(
+    publication_status: Optional[PublicationStatus] = Query(default=None),
+    processing_status: Optional[ProcessingStatus] = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> ManagementNoticeListResponse:
+    """Staff notice management list regardless of publication status."""
+    return await list_management_notices(
+        supabase_service,
+        publication_status=publication_status,
+        processing_status=processing_status,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post(
+    "/uploader/notices/{notice_id}/withdraw",
+    response_model=WithdrawNoticeResponse,
+    summary="Withdraw a notice",
+    description="Set publication_status='withdrawn' and record withdrawal_reason per API_CONTRACTS.md §8.8.",
+)
+async def withdraw_notice_endpoint(
+    notice_id: str,
+    payload: WithdrawNoticeRequest,
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> WithdrawNoticeResponse:
+    """Withdraw a notice from public visibility while preserving audit history."""
+    return await withdraw_notice(
+        supabase_service,
+        notice_id,
+        actor_id=str(current_user["id"]),
+        reason=payload.reason,
+    )
+
+
+@router.get(
+    "/uploader/reports",
+    response_model=ErrorReportListResponse,
+    summary="List public error reports",
+    description="Return paginated public error reports filtered by status per API_CONTRACTS.md §8.11.",
+)
+async def list_uploader_reports_endpoint(
+    status_filter: Optional[ReportStatus] = Query(default="open", alias="status"),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> ErrorReportListResponse:
+    """List error reports for authorized uploader review."""
+    return await list_uploader_reports(
+        supabase_service,
+        report_status=status_filter,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.patch(
+    "/uploader/reports/{report_id}",
+    response_model=ResolveErrorReportResponse,
+    summary="Resolve or dismiss an error report",
+    description="Mark an open error report as resolved or dismissed with optional note per API_CONTRACTS.md §8.9.",
+)
+async def resolve_report_endpoint(
+    report_id: int,
+    payload: ResolveErrorReportRequest,
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> ResolveErrorReportResponse:
+    """Resolve or dismiss an error report without altering the notice itself."""
+    return await resolve_or_dismiss_report(
+        supabase_service,
+        report_id,
+        new_status=payload.status,
+        actor_id=str(current_user["id"]),
+        resolution_note=payload.resolution_note,
     )

@@ -1,5 +1,5 @@
-from typing import Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Literal, Optional
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.uploader import PaginationMeta
 
@@ -154,3 +154,34 @@ class BriefingResponse(BaseModel):
     sections: BriefingSections
     upcoming_deadlines: List[BriefingDateItem] = Field(default_factory=list)
     newest_notices: List[PublicNoticeListItem] = Field(default_factory=list)
+
+
+ErrorReportIssueType = Literal[
+    "incorrect_information",
+    "broken_link_or_file",
+    "missing_dates_or_details",
+    "duplicate_notice",
+    "other",
+]
+
+
+class ErrorReportCreateRequest(BaseModel):
+    """Public error report submission per API_CONTRACTS.md §7.8."""
+
+    issue_type: ErrorReportIssueType
+    description: Optional[str] = Field(default=None, max_length=1000)
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def strip_description(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            cleaned = value.strip()
+            return cleaned or None
+        return value
+
+
+class ErrorReportCreateResponse(BaseModel):
+    """Response for POST /api/v1/notices/{notice_id}/reports."""
+
+    report_id: str
+    status: str = "received"

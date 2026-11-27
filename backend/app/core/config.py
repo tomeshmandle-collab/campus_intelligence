@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     AI_EXTRACTION_TIMEOUT_SECONDS: float = 30.0
     AI_AUTO_PUBLISH_CONFIDENCE_THRESHOLD: float = 0.85
     AI_MAX_INPUT_CHARS: int = 100000
+    REPORT_RATE_LIMIT_MAX_REQUESTS: int = 5
+    REPORT_RATE_LIMIT_WINDOW_SECONDS: int = 60
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
