@@ -1,10 +1,32 @@
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
 import uuid
-from typing import Any, Dict
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile, status
 
 from app.core.auth import require_uploader
 from app.core.config import settings
-from app.schemas.uploader import UploadResponse
+from app.schemas.uploader import (
+    NoticeFieldsPatchRequest,
+    NoticeFieldsPatchResponse,
+    PublishNoticeRequest,
+    PublishNoticeResponse,
+    RelationshipActionRequest,
+    RelationshipActionResponse,
+    RetryNoticeRequest,
+    RetryNoticeResponse,
+    ReviewDetailResponse,
+    ReviewQueueResponse,
+    UploadResponse,
+)
+from app.services.review_service import (
+    get_review_detail,
+    get_review_queue,
+    handle_relationship_action,
+    patch_notice_fields,
+    publish_reviewed_notice,
+    retry_notice_processing,
+)
 from app.services.supabase import SupabaseService, get_supabase_service
 
 router = APIRouter()
@@ -70,14 +92,18 @@ async def upload_notice(
     )
 
     # 5. Insert row into 'notices' table with status 'pending', 'held'
+    now_iso = datetime.now(timezone.utc).isoformat()
     notice_record = {
         "id": notice_id,
         "title": file.filename or f"Notice {notice_id[:8]}",
         "storage_path": storage_path,
         "processing_status": "pending",
         "publication_status": "held",
+        "relationship_status": "current",
         "audience": "unspecified",
         "review_reasons": [],
+        "created_at": now_iso,
+        "updated_at": now_iso,
     }
     await supabase_service.insert_notice(notice_record)
 
@@ -85,4 +111,183 @@ async def upload_notice(
     return UploadResponse(
         notice_id=notice_id,
         status="pending",
+    )
+
+
+@router.get(
+    "/uploader/review-queue",
+    response_model=ReviewQueueResponse,
+    summary="List held or failed notices for review",
+    description="Return paginated held and failed notices with review reasons per API_CONTRACTS.md §8.3.",
+)
+@router.get(
+    "/review-queue",
+    response_model=ReviewQueueResponse,
+    include_in_schema=False,
+)
+async def list_review_queue_endpoint(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> ReviewQueueResponse:
+    """List notices awaiting human review."""
+    return await get_review_queue(supabase_service, limit=limit, offset=offset)
+
+
+@router.get(
+    "/uploader/notices/{notice_id}",
+    response_model=ReviewDetailResponse,
+    summary="Get notice review detail",
+    description="Return notice metadata, extracted field evidence, extracted page text, and relationships per API_CONTRACTS.md §8.4.",
+)
+@router.get(
+    "/notices/{notice_id}/review",
+    response_model=ReviewDetailResponse,
+    include_in_schema=False,
+)
+async def get_notice_review_endpoint(
+    notice_id: str,
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> ReviewDetailResponse:
+    """Return full review context for an authorized uploader."""
+    return await get_review_detail(supabase_service, notice_id)
+
+
+@router.patch(
+    "/uploader/notices/{notice_id}",
+    response_model=NoticeFieldsPatchResponse,
+    summary="Correct notice fields with audit logging",
+    description="Update supported notice fields, log old/new values to notice_edits, and re-run blocking checks per API_CONTRACTS.md §8.5.",
+)
+@router.patch(
+    "/notices/{notice_id}/fields",
+    response_model=NoticeFieldsPatchResponse,
+    include_in_schema=False,
+)
+async def patch_notice_fields_endpoint(
+    notice_id: str,
+    payload: NoticeFieldsPatchRequest,
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> NoticeFieldsPatchResponse:
+    """Update editable fields and persist an audit trail without auto-publishing."""
+    return await patch_notice_fields(
+        supabase_service,
+        notice_id,
+        payload,
+        editor_id=str(current_user["id"]),
+    )
+
+
+@router.post(
+    "/uploader/notices/{notice_id}/publish",
+    response_model=PublishNoticeResponse,
+    summary="Publish a reviewed notice",
+    description="Validate all blocking review reasons are cleared and set publication_status='published' per API_CONTRACTS.md §8.6.",
+)
+async def publish_notice_contract_endpoint(
+    notice_id: str,
+    payload: PublishNoticeRequest,
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> PublishNoticeResponse:
+    """Publish a reviewed notice requiring explicit confirmation."""
+    return await publish_reviewed_notice(
+        supabase_service,
+        notice_id,
+        actor_id=str(current_user["id"]),
+        confirmation=payload.confirmation,
+    )
+
+
+@router.post(
+    "/notices/{notice_id}/publish",
+    response_model=PublishNoticeResponse,
+    include_in_schema=False,
+)
+async def publish_notice_alias_endpoint(
+    notice_id: str,
+    payload: Optional[PublishNoticeRequest] = Body(default=None),
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> PublishNoticeResponse:
+    """Alias route for publishing a reviewed notice."""
+    confirmed = True if payload is None else payload.confirmation
+    return await publish_reviewed_notice(
+        supabase_service,
+        notice_id,
+        actor_id=str(current_user["id"]),
+        confirmation=confirmed,
+    )
+
+
+@router.post(
+    "/uploader/notices/{notice_id}/retry",
+    response_model=RetryNoticeResponse,
+    summary="Retry processing for a held or failed notice",
+    description="Re-queue an eligible failed or held notice for processing per API_CONTRACTS.md §8.7.",
+)
+@router.post(
+    "/notices/{notice_id}/retry",
+    response_model=RetryNoticeResponse,
+    include_in_schema=False,
+)
+async def retry_notice_endpoint(
+    notice_id: str,
+    payload: RetryNoticeRequest,
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> RetryNoticeResponse:
+    """Retry processing for an eligible notice."""
+    return await retry_notice_processing(
+        supabase_service,
+        notice_id,
+        actor_id=str(current_user["id"]),
+        confirmation=payload.confirmation,
+    )
+
+
+@router.patch(
+    "/uploader/relations/{relation_id}",
+    response_model=RelationshipActionResponse,
+    summary="Confirm or reject a detected relationship",
+    description="Confirm or reject a notice relationship per API_CONTRACTS.md §8.12 without altering unapproved notices.",
+)
+async def relation_action_endpoint(
+    relation_id: int,
+    payload: RelationshipActionRequest,
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> RelationshipActionResponse:
+    """Confirm or reject a relationship via §8.12 route."""
+    return await handle_relationship_action(
+        supabase_service,
+        relation_id,
+        action=payload.action,
+        actor_id=str(current_user["id"]),
+    )
+
+
+@router.post(
+    "/notices/{notice_id}/relationships/{rel_id}/confirm",
+    response_model=RelationshipActionResponse,
+    include_in_schema=False,
+)
+async def confirm_notice_relationship_alias_endpoint(
+    notice_id: str,
+    rel_id: int,
+    payload: Optional[RelationshipActionRequest] = Body(default=None),
+    current_user: Dict[str, Any] = Depends(require_uploader),
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> RelationshipActionResponse:
+    """Alias route to confirm a notice relationship without modifying unapproved notices."""
+    action = "confirm" if payload is None else payload.action
+    return await handle_relationship_action(
+        supabase_service,
+        rel_id,
+        action=action,
+        actor_id=str(current_user["id"]),
+        expected_notice_id=notice_id,
     )
