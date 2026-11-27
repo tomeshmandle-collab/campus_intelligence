@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     MAX_PAGE_COUNT: int = 10  # 10 pages default
     OCR_MIN_TEXT_CHARS: int = 50
     OCR_TIMEOUT_SECONDS: float = 30.0
+    AI_EXTRACTION_TIMEOUT_SECONDS: float = 30.0
+    AI_AUTO_PUBLISH_CONFIDENCE_THRESHOLD: float = 0.85
+    AI_MAX_INPUT_CHARS: int = 100000
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

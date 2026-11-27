@@ -212,6 +212,102 @@ class SupabaseService:
             self._in_memory_notices[notice_id]["publication_status"] = "held"
             self._in_memory_notices[notice_id]["review_reasons"] = review_reasons
 
+    def update_notice_sync(
+        self, notice_id: str, update_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Update an existing notice row in the notices table (sync)."""
+        if self._use_live_supabase:
+            endpoint = f"{self.url}/rest/v1/notices?id=eq.{notice_id}"
+            try:
+                with httpx.Client(timeout=15.0) as client:
+                    resp = client.patch(
+                        endpoint, json=update_data, headers=self._rest_headers()
+                    )
+                    if resp.status_code not in (200, 204):
+                        logger.error(
+                            "Supabase PostgREST error updating notice %s (%s): %s",
+                            notice_id,
+                            resp.status_code,
+                            resp.text,
+                        )
+                        raise RuntimeError(f"Failed to update notice: HTTP {resp.status_code}")
+                    if resp.status_code == 200 and resp.content:
+                        results = resp.json()
+                        if isinstance(results, list) and results:
+                            return results[0]
+                    return {"id": notice_id, **update_data}
+            except httpx.RequestError as exc:
+                logger.error("Database connection failed updating notice %s: %s", notice_id, exc)
+                raise RuntimeError("Database service unavailable while updating notice.") from exc
+
+        existing = self._in_memory_notices.setdefault(notice_id, {"id": notice_id})
+        existing.update(update_data)
+        logger.info("Updated notice in in-memory database: %s", notice_id)
+        return dict(existing)
+
+    async def update_notice(
+        self, notice_id: str, update_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Update an existing notice row in the notices table (async)."""
+        if self._use_live_supabase:
+            endpoint = f"{self.url}/rest/v1/notices?id=eq.{notice_id}"
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.patch(
+                        endpoint, json=update_data, headers=self._rest_headers()
+                    )
+                    if resp.status_code not in (200, 204):
+                        logger.error(
+                            "Supabase PostgREST error updating notice %s (%s): %s",
+                            notice_id,
+                            resp.status_code,
+                            resp.text,
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Failed to update notice record in database.",
+                        )
+                    if resp.status_code == 200 and resp.content:
+                        results = resp.json()
+                        if isinstance(results, list) and results:
+                            return results[0]
+                    return {"id": notice_id, **update_data}
+            except httpx.RequestError as exc:
+                logger.error("Database connection failed updating notice %s: %s", notice_id, exc)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Database service unavailable.",
+                )
+
+        existing = self._in_memory_notices.setdefault(notice_id, {"id": notice_id})
+        existing.update(update_data)
+        logger.info("Updated notice in in-memory database: %s", notice_id)
+        return dict(existing)
+
+    def get_notice_sync(self, notice_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a single notice row by ID (sync)."""
+        if self._use_live_supabase:
+            endpoint = f"{self.url}/rest/v1/notices?id=eq.{notice_id}&select=*"
+            try:
+                with httpx.Client(timeout=15.0) as client:
+                    resp = client.get(endpoint, headers=self._rest_headers())
+                    if resp.status_code != 200:
+                        logger.error(
+                            "Supabase PostgREST error fetching notice %s (%s): %s",
+                            notice_id,
+                            resp.status_code,
+                            resp.text,
+                        )
+                        return None
+                    results = resp.json()
+                    return results[0] if isinstance(results, list) and results else None
+            except httpx.RequestError as exc:
+                logger.error("Database connection failed fetching notice %s: %s", notice_id, exc)
+                return None
+
+        notice = self._in_memory_notices.get(notice_id)
+        return dict(notice) if notice is not None else None
+
 
 _supabase_service_instance: Optional[SupabaseService] = None
 
