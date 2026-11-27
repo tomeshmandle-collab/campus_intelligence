@@ -222,3 +222,90 @@ class RelationshipActionResponse(BaseModel):
     outcome: Literal["confirmed", "rejected"]
     earlier_notice_id: Optional[str] = None
     earlier_relationship_status: Optional[str] = None
+
+
+class ManagementNoticeItem(BaseModel):
+    """Staff management list entry per API_CONTRACTS.md §8.10."""
+
+    notice_id: str
+    title: Optional[str] = None
+    processing_status: str
+    publication_status: str
+    relationship_status: str = "current"
+    uploaded_at: Optional[str] = None
+    published_at: Optional[str] = None
+
+
+class ManagementNoticeListResponse(BaseModel):
+    """Paginated response for GET /api/v1/uploader/notices."""
+
+    items: List[ManagementNoticeItem]
+    pagination: PaginationMeta
+
+
+class WithdrawNoticeRequest(BaseModel):
+    """Withdrawal payload per API_CONTRACTS.md §8.8."""
+
+    reason: str = Field(..., min_length=3, max_length=1000)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def strip_reason(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class WithdrawNoticeResponse(BaseModel):
+    """Response for POST /api/v1/uploader/notices/{notice_id}/withdraw."""
+
+    notice_id: str
+    publication_status: PublicationStatus
+    withdrawn_at: str
+
+
+ReportStatus = Literal["open", "resolved", "dismissed"]
+
+
+class ErrorReportItem(BaseModel):
+    """Uploader-facing error report record per API_CONTRACTS.md §8.11."""
+
+    report_id: str
+    notice_id: str
+    notice_title: Optional[str] = None
+    issue_type: str
+    description: Optional[str] = None
+    status: ReportStatus
+    created_at: Optional[str] = None
+    resolved_at: Optional[str] = None
+    resolution_note: Optional[str] = None
+
+
+class ErrorReportListResponse(BaseModel):
+    """Paginated response for GET /api/v1/uploader/reports."""
+
+    items: List[ErrorReportItem]
+    pagination: PaginationMeta
+
+
+class ResolveErrorReportRequest(BaseModel):
+    """Resolution/dismissal payload per API_CONTRACTS.md §8.9."""
+
+    status: Literal["resolved", "dismissed"]
+    resolution_note: Optional[str] = Field(default=None, max_length=1000)
+
+    @field_validator("resolution_note", mode="before")
+    @classmethod
+    def strip_note(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            cleaned = value.strip()
+            return cleaned or None
+        return value
+
+
+class ResolveErrorReportResponse(BaseModel):
+    """Response for PATCH /api/v1/uploader/reports/{report_id}."""
+
+    report_id: str
+    status: Literal["resolved", "dismissed"]
+    resolved_at: str

@@ -33,6 +33,8 @@ class SupabaseService:
         self._in_memory_relationships: Dict[int, Dict[str, Any]] = {}
         self._in_memory_relationship_seq: int = 0
         self._in_memory_processing_events: Dict[str, List[Dict[str, Any]]] = {}
+        self._in_memory_error_reports: Dict[int, Dict[str, Any]] = {}
+        self._in_memory_error_report_seq: int = 0
 
     @property
     def _use_live_supabase(self) -> bool:
@@ -957,6 +959,221 @@ class SupabaseService:
             for rel in self._in_memory_relationships.values()
             if rel.get("confirmed") is True
         ]
+
+    async def list_all_notices_for_management(
+        self,
+        *,
+        publication_status: Optional[str] = None,
+        processing_status: Optional[str] = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """List notices for staff management regardless of publication status."""
+        if self._use_live_supabase:
+            params: List[str] = [
+                "order=created_at.desc",
+                f"limit={limit}",
+                f"offset={offset}",
+                "select=*",
+            ]
+            if publication_status:
+                params.append(f"publication_status=eq.{publication_status}")
+            if processing_status:
+                params.append(f"processing_status=eq.{processing_status}")
+            endpoint = f"{self.url}/rest/v1/notices?{'&'.join(params)}"
+            headers = self._rest_headers(prefer="count=exact")
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(endpoint, headers=headers)
+                    if resp.status_code not in (200, 206):
+                        logger.error(
+                            "Supabase PostgREST error listing management notices (%s): %s",
+                            resp.status_code,
+                            resp.text,
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Failed to list notices.",
+                        )
+                    items = resp.json() if isinstance(resp.json(), list) else []
+                    total = self._parse_content_range_total(
+                        resp.headers.get("content-range"), len(items)
+                    )
+                    return items, total
+            except httpx.RequestError as exc:
+                logger.error("Database error listing management notices: %s", exc)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Database service unavailable.",
+                )
+
+        rows = [dict(n) for n in self._in_memory_notices.values()]
+        if publication_status:
+            rows = [r for r in rows if r.get("publication_status") == publication_status]
+        if processing_status:
+            rows = [r for r in rows if r.get("processing_status") == processing_status]
+        rows.sort(
+            key=lambda n: str(n.get("created_at") or n.get("updated_at") or ""),
+            reverse=True,
+        )
+        total = len(rows)
+        return rows[offset : offset + limit], total
+
+    async def insert_error_report(self, report_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert a public error report into error_reports."""
+        if self._use_live_supabase:
+            endpoint = f"{self.url}/rest/v1/error_reports"
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.post(
+                        endpoint, json=report_data, headers=self._rest_headers()
+                    )
+                    if resp.status_code not in (200, 201):
+                        logger.error(
+                            "Supabase PostgREST error inserting error_report (%s): %s",
+                            resp.status_code,
+                            resp.text,
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Failed to submit error report.",
+                        )
+                    rows = resp.json()
+                    return rows[0] if isinstance(rows, list) and rows else report_data
+            except httpx.RequestError as exc:
+                logger.error("Database error inserting error_report: %s", exc)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Database service unavailable.",
+                )
+
+        self._in_memory_error_report_seq += 1
+        rid = self._in_memory_error_report_seq
+        row = {
+            "id": rid,
+            "status": "open",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "resolved_by": None,
+            "resolved_at": None,
+            "resolution_note": None,
+            **report_data,
+        }
+        self._in_memory_error_reports[rid] = row
+        return dict(row)
+
+    async def list_error_reports(
+        self,
+        *,
+        report_status: Optional[str] = "open",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """List error reports filtered by status for uploader review."""
+        if self._use_live_supabase:
+            params: List[str] = [
+                "order=created_at.desc",
+                f"limit={limit}",
+                f"offset={offset}",
+                "select=*,notices(title)",
+            ]
+            if report_status:
+                params.append(f"status=eq.{report_status}")
+            endpoint = f"{self.url}/rest/v1/error_reports?{'&'.join(params)}"
+            headers = self._rest_headers(prefer="count=exact")
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(endpoint, headers=headers)
+                    if resp.status_code not in (200, 206):
+                        logger.error(
+                            "Supabase PostgREST error listing error_reports (%s): %s",
+                            resp.status_code,
+                            resp.text,
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Failed to load error reports.",
+                        )
+                    items = resp.json() if isinstance(resp.json(), list) else []
+                    total = self._parse_content_range_total(
+                        resp.headers.get("content-range"), len(items)
+                    )
+                    return items, total
+            except httpx.RequestError as exc:
+                logger.error("Database error listing error_reports: %s", exc)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Database service unavailable.",
+                )
+
+        rows = []
+        for report in self._in_memory_error_reports.values():
+            if report_status and report.get("status") != report_status:
+                continue
+            item = dict(report)
+            notice = self._in_memory_notices.get(str(report["notice_id"]))
+            item["notice_title"] = notice.get("title") if notice else None
+            rows.append(item)
+        rows.sort(key=lambda r: str(r.get("created_at") or ""), reverse=True)
+        total = len(rows)
+        return rows[offset : offset + limit], total
+
+    async def get_error_report(self, report_id: int) -> Optional[Dict[str, Any]]:
+        """Retrieve a single error report by ID."""
+        if self._use_live_supabase:
+            endpoint = f"{self.url}/rest/v1/error_reports?id=eq.{report_id}&select=*"
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(endpoint, headers=self._rest_headers())
+                    if resp.status_code != 200:
+                        raise HTTPException(
+                            status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Failed to fetch error report.",
+                        )
+                    rows = resp.json()
+                    return rows[0] if isinstance(rows, list) and rows else None
+            except httpx.RequestError as exc:
+                logger.error("Database error fetching error_report %s: %s", report_id, exc)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Database service unavailable.",
+                )
+
+        row = self._in_memory_error_reports.get(report_id)
+        return dict(row) if row is not None else None
+
+    async def update_error_report(
+        self, report_id: int, update_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Update an error report record."""
+        if self._use_live_supabase:
+            endpoint = f"{self.url}/rest/v1/error_reports?id=eq.{report_id}"
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.patch(
+                        endpoint, json=update_data, headers=self._rest_headers()
+                    )
+                    if resp.status_code not in (200, 204):
+                        raise HTTPException(
+                            status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Failed to update error report.",
+                        )
+                    if resp.status_code == 200 and resp.content:
+                        rows = resp.json()
+                        if isinstance(rows, list) and rows:
+                            return rows[0]
+                    return {"id": report_id, **update_data}
+            except httpx.RequestError as exc:
+                logger.error("Database error updating error_report %s: %s", report_id, exc)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Database service unavailable.",
+                )
+
+        row = self._in_memory_error_reports.get(report_id)
+        if row is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Error report not found.")
+        row.update(update_data)
+        return dict(row)
 
 
 _supabase_service_instance: Optional[SupabaseService] = None

@@ -1,10 +1,12 @@
 from datetime import date
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.schemas.notices import (
     BriefingResponse,
+    ErrorReportCreateRequest,
+    ErrorReportCreateResponse,
     FilterOptionsResponse,
     PublicNoticeDetailResponse,
     PublicNoticeListResponse,
@@ -14,6 +16,7 @@ from app.services.public_notices_service import (
     get_public_briefing,
     get_public_notice_detail,
     list_public_notices,
+    submit_public_error_report,
 )
 from app.services.supabase import SupabaseService, get_supabase_service
 
@@ -103,3 +106,37 @@ async def get_notice_detail_endpoint(
 ) -> PublicNoticeDetailResponse:
     """Return published notice detail; return 404 for held, withdrawn, or missing notices."""
     return await get_public_notice_detail(supabase_service, notice_id)
+
+
+def _extract_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        first_ip = forwarded.split(",", 1)[0].strip()
+        if first_ip:
+            return first_ip
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
+
+
+@router.post(
+    "/notices/{notice_id}/reports",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ErrorReportCreateResponse,
+    summary="Submit public error report",
+    description="Submit an error report for a publicly visible notice with IP rate limiting per API_CONTRACTS.md §7.8.",
+)
+async def submit_error_report_endpoint(
+    notice_id: str,
+    payload: ErrorReportCreateRequest,
+    request: Request,
+    supabase_service: SupabaseService = Depends(get_supabase_service),
+) -> ErrorReportCreateResponse:
+    """Submit a public error report without modifying the underlying notice."""
+    client_ip = _extract_client_ip(request)
+    return await submit_public_error_report(
+        supabase_service,
+        notice_id,
+        payload,
+        client_ip=client_ip,
+    )
