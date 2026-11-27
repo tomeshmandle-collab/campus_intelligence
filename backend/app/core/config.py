@@ -27,10 +27,13 @@ class Settings(BaseSettings):
 
     # Gemini AI provider
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
 
     # Processing and ingestion bounds
     MAX_UPLOAD_SIZE_BYTES: int = 10485760  # 10 MB default
     MAX_PAGE_COUNT: int = 10  # 10 pages default
+    OCR_MIN_TEXT_CHARS: int = 50
+    OCR_TIMEOUT_SECONDS: float = 30.0
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
