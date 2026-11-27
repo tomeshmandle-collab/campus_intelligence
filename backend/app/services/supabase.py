@@ -897,6 +897,67 @@ class SupabaseService:
 
         return None
 
+    async def list_published_notices(self) -> List[Dict[str, Any]]:
+        """Retrieve all notices with publication_status='published'."""
+        if self._use_live_supabase:
+            endpoint = (
+                f"{self.url}/rest/v1/notices"
+                "?publication_status=eq.published"
+                "&order=published_at.desc"
+                "&select=id,title,notice_date,deadline_date,audience,category,summary,"
+                "storage_path,publication_status,relationship_status,published_at,created_at,updated_at"
+            )
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(endpoint, headers=self._rest_headers())
+                    if resp.status_code != 200:
+                        logger.error(
+                            "Supabase PostgREST error listing published notices (%s): %s",
+                            resp.status_code,
+                            resp.text,
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Failed to load published notices.",
+                        )
+                    rows = resp.json()
+                    return rows if isinstance(rows, list) else []
+            except httpx.RequestError as exc:
+                logger.error("Database connection failed listing published notices: %s", exc)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Database service unavailable.",
+                )
+
+        return [
+            dict(notice)
+            for notice in self._in_memory_notices.values()
+            if notice.get("publication_status") == "published"
+        ]
+
+    async def list_confirmed_relationships(self) -> List[Dict[str, Any]]:
+        """Retrieve all confirmed notice relationships."""
+        if self._use_live_supabase:
+            endpoint = (
+                f"{self.url}/rest/v1/notice_relationships"
+                "?confirmed=eq.true&order=created_at.desc&select=*"
+            )
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(endpoint, headers=self._rest_headers())
+                    if resp.status_code != 200:
+                        return []
+                    rows = resp.json()
+                    return rows if isinstance(rows, list) else []
+            except httpx.RequestError:
+                return []
+
+        return [
+            dict(rel)
+            for rel in self._in_memory_relationships.values()
+            if rel.get("confirmed") is True
+        ]
+
 
 _supabase_service_instance: Optional[SupabaseService] = None
 
