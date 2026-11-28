@@ -128,12 +128,56 @@ Before you begin any task:
 
 ---
 
+### Issue P3-6 (Phase 3): Public Frontend–Backend Contract Alignment & Live Integration Polish
+- **Branch Name:** `fix/p3-backend-contract-alignment`
+- **Working Directory:** `frontend/src/`
+- **Scope:** Align all P3 public types, components, filters, routes, and error handling with the completed Lead backend (`L-1`–`L-9`) so zero contract or runtime conflicts remain.
+
+#### 🔹 Prompt 1: Align Notice Feed Types, Mapper & `NoticeCard` with `GET /api/v1/notices`
+> "Read `backend/app/schemas/notices.py` (`PublicNoticeListItem`, `PublicImportantDate`) and `docs/API_CONTRACTS.md` Section 7.4.
+> Currently `frontend/src/types/notice.ts` (`Notice`) and `frontend/src/components/notices/NoticeCard.tsx` expect `summary_snippet`, `audience`, `publication_date`, `deadline_date`, `is_urgent`, and `source_page_count`, whereas the live backend returns `summary`, `audiences: string[]`, `important_dates`, `published_at`, `reference_number`, and `relationship_status`.
+> Update `src/types/notice.ts`, `src/services/api.ts` (add a clean response normalizer/mapper if helpful), `src/components/notices/NoticeCard.tsx`, and `src/mocks/mockNotices.ts` so:
+> 1. `NoticeCard` works identically with live `GET /api/v1/notices` responses and mock data.
+> 2. Deadlines and urgency are derived from `important_dates` (`kind === 'deadline'`).
+> 3. Nullable backend fields (`title`, `category`, `summary`, `published_at`) have safe null guards (no `.toLowerCase()` crash when `category` is `null`)."
+
+#### 🔹 Prompt 2: Wire `GET /api/v1/filters` into `NoticeFeed`
+> "Read `backend/app/services/public_notices_service.py` (`AUDIENCE_OPTIONS`, `CATEGORY_OPTIONS`) and `docs/API_CONTRACTS.md` Section 7.2 (`GET /api/v1/filters`).
+> In `src/services/api.ts`, add `fetchFilters()` calling `GET /api/v1/filters`.
+> In `src/components/notices/NoticeFeed.tsx`, populate the Category dropdown and Audience filter chips from `fetchFilters()` (keeping the current controlled options as an offline fallback when the backend is unreachable) so unsupported categories like `Scholarships` are not sent and backend categories (`Academic`, `Examination`, `Admissions`, `Events and workshops`, `Administration`, `General`, `Other`) work seamlessly."
+
+#### 🔹 Prompt 3: Fix `NoticeDetailPage` Contract Mismatches (`action_items`, `related_notices`, Null Guards)
+> "Read `backend/app/schemas/notices.py` (`PublicNoticeDetail`, `PublicRelatedNotice`, `PublicSourceFile`) and `src/pages/public/NoticeDetailPage.tsx`.
+> Fix three compatibility issues in `src/types/notice.ts` and `src/pages/public/NoticeDetailPage.tsx`:
+> 1. `action_items`: Backend returns `List[Dict]` (not `string[]`). Update `NoticeDetailPage.tsx` so each `action_items` entry renders safely whether it is a `string` or a structured object (never pass a raw object directly as a React child).
+> 2. `related_notices`: Backend `PublicRelatedNotice` returns `{ notice_id, title, relation, direction: 'earlier' | 'later' }` instead of `relationship_type` / `publication_date`. Update `RelatedNotice` in `src/types/notice.ts` and its rendering in `NoticeDetailPage.tsx` to use `relation` and `direction`.
+> 3. Add safe fallbacks for `source_file.page_count` (backend returns `{ available, download_url }`) and nullable fields (`title`, `category`, `summary`, `published_at`)."
+
+#### 🔹 Prompt 4: Add `/about` Route & Wire Home Briefing (`GET /api/v1/notices/briefing`)
+> "Inspect `src/App.tsx`, `src/components/layout/Navbar.tsx`, and `backend/app/schemas/notices.py` (`BriefingResponse`).
+> 1. `Navbar.tsx` links to `/about`, which currently falls through to `NoticeFeed` in `src/App.tsx`. Add a clean institutional About view at `/about` explaining CAI Campus Intelligence (Kirori Mal College), how official notices are extracted with source provenance, and the disclaimer. Leave `/login` for P4-1.
+> 2. In `src/services/api.ts`, add `fetchBriefing(audience?)` for `GET /api/v1/notices/briefing`, and surface a compact briefing strip (upcoming deadlines / recent changes) above the feed on the public home view when live data is available."
+
+#### 🔹 Prompt 5: Verify `ErrorReportModal` Rate-Limit & Error Handling
+> "Inspect `src/components/notices/ErrorReportModal.tsx` and `backend/app/services/public_notices_service.py` (`submit_public_error_report`).
+> Ensure `ErrorReportModal.tsx`:
+> 1. Displays a clear, user-friendly message when the backend returns `429 RATE_LIMITED` (5 requests / 60s per IP).
+> 2. Only falls back to `mockSubmitErrorReport` on network/unreachable errors, never on `4xx` validation/not-found/rate-limit responses."
+
+---
+
 ## 3. Pre-PR Submission Checklist for P3
 - [ ] Run build test:
   ```bash
   cd frontend
   npm run build
   ```
+  Verify zero TypeScript (`tsc -b`) or Vite build errors.
+- [ ] Run live integration smoke test (backend `uvicorn app.main:app --reload` + frontend `npm run dev`, **not** mock mode):
+  - [ ] **Notice Feed:** `GET /api/v1/notices` and `GET /api/v1/filters` load and filter by audience & category without console errors.
+  - [ ] **Notice Detail:** `/notices/:id` renders summary, dates, `action_items`, `related_notices`, and **Download Official Notice** signed URL cleanly; withdrawn/held notices show the 404/not-available state.
+  - [ ] **Error Report Modal:** Valid submission returns `201` success state; `<10` chars shows validation error; `429` shows rate-limit message.
+  - [ ] **Routes & Responsive Layout:** `Notices`, `Search & Ask`, `About`, and mobile menu work cleanly at `375px` and `1440px`.
 - [ ] Check Git status: verify zero `.env` or untracked build artifacts.
 - [ ] Push branch: `git push -u origin <branch-name>`
-- [ ] Open PR tagging `@ProjectLead` with UI screenshots.
+- [ ] Open PR tagging `@ProjectLead` with the verification results and UI screenshots.

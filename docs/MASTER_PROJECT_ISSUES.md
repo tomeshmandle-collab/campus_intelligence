@@ -13,9 +13,9 @@
 | **Project Lead** | Lead (You) | Architecture, Scaffolding, Backend Pipeline, DB/RLS, Security, Review & Approval | 9 Issues |
 | **Member 1 (P1)** | Quality & Test Assets | Sample notice collection, ground truth datasets, test automation, evaluation suites | 5 Issues |
 | **Member 2 (P2)** | Search & Q&A Backend | Eval benchmark dataset, PostgreSQL full-text search, Gemini Ask pipeline, citation validation | 4 Issues |
-| **Member 3 (P3)** | Public Frontend | Layout shell, notice feed/filters, detail view, error-reporting modal, search & Ask UI | 5 Issues |
+| **Member 3 (P3)** | Public Frontend | Layout shell, notice feed/filters, detail view, error-reporting modal, search & Ask UI, backend contract alignment | 6 Issues |
 | **Member 4 (P4)** | Uploader/Admin Frontend | Auth/login UI, upload dropzone, review & exception queue, correction & publish actions, notice management | 5 Issues |
-| **Total** | | | **28 Issues** |
+| **Total** | | | **29 Issues** |
 
 ---
 
@@ -169,16 +169,23 @@
 ### Issue P1-3: End-to-End Ingestion Pipeline Verification & Failure Simulation
 - **Phase:** Phase 2
 - **Branch:** `test/ingestion-pipeline-e2e`
-- **Modules Covered:** M12 (Quality & Test Assets), M06 (AI Validation)
+- **Modules Covered:** M12 (Quality & Test Assets), M04 (Upload), M05 (Extraction), M06 (AI Validation)
 - **Requirements & Prerequisites:**
-  - Test suite `tests/e2e/test_notice_ingestion.py`.
-  - Simulate edge cases:
-    - Notice with conflicting dates (deadline before notice date).
-    - Multi-page notice with notice date on page 1 and deadline on page 3.
-    - Notice with corrupted PDF header.
-    - File exceeding 10MB limit.
-  - Verify that edge cases are placed into the `held` queue with the correct `review_reasons`.
-- **Deliverables:** Pytest test suite asserting pipeline hold/publish criteria.
+  - Test suite `tests/e2e/test_notice_ingestion.py` testing against the real FastAPI `app` with `app.dependency_overrides[get_supabase_service]` (`SupabaseService(is_mock=True)`) and `Bearer mock-uploader-token` (remove any standalone simulated router from pre-`L-4` drafts).
+  - Verify real upload & security boundaries (`L-4`):
+    - Unauthenticated request -> `401 Unauthorized`.
+    - Corrupted PDF (`.pdf` extension with non-PDF bytes) -> `415 Unsupported Media Type`.
+    - Oversized file (> 10MB limit) -> `413 Payload Too Large`.
+    - Valid PDF upload -> `202 Accepted` with `notice_id` and `processing_status` (`pending` / `processing`).
+  - Verify real extraction & AI validation pipeline (`L-5` + `L-6` with deterministic mocked Gemini responses):
+    - Valid digital notice -> `completed` + `published` (when confidence and checks pass).
+    - Conflicting dates (deadline before notice date) -> placed in `held` queue with `review_reasons` containing `deadline_prior_to_notice_date`.
+    - Multi-page notice with notice date on page 1 and deadline on page 3 -> page-aware extraction preserves both pages and extracts both dates accurately.
+  - Keep `tests/reports/extraction_benchmark.json` unmodified on this branch (revert any incidental timestamp-only diff).
+- **Verification & Test Checklist:**
+  - `pytest tests/e2e/test_notice_ingestion.py -v` passes all cases against the real `backend/app/main.py` app.
+  - `pytest tests/ -v` and `cd backend && pytest -v` pass with zero regressions and no simulated router overrides left behind.
+- **Deliverables:** Pytest E2E suite aligned with `L-4`–`L-6` asserting upload validation and pipeline hold/publish criteria.
 
 ### Issue P1-4: Public Data Leakage & Security Boundary Test Suite
 - **Phase:** Phase 3
@@ -341,6 +348,24 @@
     - Disclaimer: "AI answers are generated from official notices. Always refer to cited documents."
 - **Deliverables:** Integrated search and grounded Q&A interface with responsive states.
 
+### Issue P3-6: Public Frontend–Backend Contract Alignment & Live Integration Polish
+- **Phase:** Phase 3
+- **Branch:** `fix/p3-backend-contract-alignment`
+- **Modules Covered:** M01 (Public Experience), M10 (Briefing), M11 (Error Reporting)
+- **Requirements & Prerequisites:**
+  - Align `src/types/notice.ts`, `src/services/api.ts`, `src/components/notices/NoticeCard.tsx`, `src/components/notices/NoticeFeed.tsx`, and `src/mocks/mockNotices.ts` with `L-8` `PublicNoticeListItem` (`summary`, `audiences`, `important_dates`, `published_at`, `reference_number`, `relationship_status`) and add null guards for optional fields such as `category` and `title`.
+  - Add `fetchFilters()` for `GET /api/v1/filters` in `src/services/api.ts` and populate `NoticeFeed.tsx` category/audience filters from the backend's controlled vocabularies (with offline fallback).
+  - Fix `src/pages/public/NoticeDetailPage.tsx` contract mismatches against `L-8` `PublicNoticeDetail`:
+    - Safely render `action_items` whether items are strings or structured objects (`List[Dict]`), preventing React child render crashes.
+    - Update `related_notices` to use `relation` and `direction` (`earlier` | `later`) instead of `relationship_type` / `publication_date`.
+    - Add null/optional guards for `source_file.page_count` and nullable metadata.
+  - Add a dedicated `/about` view in `src/App.tsx` (matching the `Navbar.tsx` link) and optionally wire `GET /api/v1/notices/briefing` on the public home view (leaving `/login` for `P4-1`).
+  - Verify `src/components/notices/ErrorReportModal.tsx` displays a clear user-facing message on `429 RATE_LIMITED` and does not fall back to mock success on `4xx` API errors.
+- **Verification & Test Checklist:**
+  - `cd frontend && npm run build` passes with zero TypeScript/Vite errors.
+  - End-to-end check against live FastAPI (`L-8`/`L-9`): feed loads & filters cleanly, detail page renders all sections + signed PDF link without runtime errors, error report modal handles `201` and `429` cleanly, withdrawn/held notices show 404/not-available state, and `/notices`, `/search`, `/about` render at 375px and 1440px.
+- **Deliverables:** Zero schema/runtime conflicts between P3 public UI and the completed Lead backend (`L-1`–`L-9`).
+
 ---
 
 ## 🔐 Member 4 (P4) — Uploader & Admin Frontend (5 Issues)
@@ -454,6 +479,7 @@ flowchart TD
         L8 --> P3_3["P3-3: Notice Detail View"]
         L8 --> L9["L-9: Management & Error Report APIs"]
         L9 --> P3_4["P3-4: Public Error Report Modal"]
+        L8 & L9 & P3_3 & P3_4 --> P3_6["P3-6: P3 Backend Contract Alignment"]
         L9 --> P4_5["P4-5: Notice Management & Withdrawal"]
         L8 --> P1_4["P1-4: Public Isolation & Security Tests"]
     end

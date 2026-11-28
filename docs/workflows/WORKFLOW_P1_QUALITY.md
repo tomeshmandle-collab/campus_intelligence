@@ -77,14 +77,24 @@ Before you begin any task:
 - **Branch Name:** `test/ingestion-pipeline-e2e`
 - **Working Directory:** `tests/e2e/`
 - **Prerequisites:** Backend ingestion pipeline running.
-- **Scope:** Pytest test suite asserting pipeline hold/publish criteria on edge cases.
+- **Scope:** Pytest test suite asserting real `L-4`–`L-6` upload validation and pipeline hold/publish criteria on edge cases.
 
-#### 🔹 Prompt 1: Pipeline E2E Test Suite
-> "Read `docs/SYSTEM_ARCHITECTURE.md` Section 4 and `docs/MODULES.md` M06. In `tests/e2e/test_notice_ingestion.py`, write Pytest tests using `TestClient` from FastAPI to simulate:
-> 1. Valid digital notice upload: verify it is processed and published (or held for review if confidence low).
-> 2. Edge Case A (Conflicting dates): Notice where deadline is before notice date. Assert that notice is placed in `held` status with `review_reasons` containing 'deadline_prior_to_notice_date'.
-> 3. Edge Case B (Corrupted file): Upload a file with `.pdf` extension but random binary content. Assert backend returns 400 Bad Request indicating invalid PDF header.
-> 4. Edge Case C (Oversized file): Upload a file > 10MB. Assert backend returns 413 Payload Too Large."
+#### 🔹 Prompt 1: Rebase on `main`, Remove Simulated Router & Align Upload/Auth Tests (`L-4`)
+> "Rebase `test/ingestion-pipeline-e2e` onto updated `main` and inspect `backend/app/api/v1/uploader.py`, `backend/app/services/supabase.py`, and `backend/tests/test_uploader.py`.
+> Update `tests/e2e/test_notice_ingestion.py` to remove the old `SIMULATED_NOTICES_DB` / `build_ingestion_router()` fallback and test the real FastAPI `app`:
+> 1. Inject an isolated `SupabaseService(is_mock=True)` via `app.dependency_overrides[get_supabase_service]` per test (clean up in fixture teardown).
+> 2. Use `Authorization: Bearer mock-uploader-token` for authorized uploader requests.
+> 3. Assert `401` on missing/invalid auth, `415` on corrupted/non-PDF magic bytes (update the old `400` assertion), `413` on files > 10MB, and `202 Accepted` on valid PDF uploads."
+
+#### 🔹 Prompt 2: Wire Real Extraction & AI Validation (`L-5` & `L-6`) for Edge Cases
+> "Inspect `backend/app/services/extraction/pdf_extractor.py`, `backend/app/services/ai/gemini_extractor.py`, and `backend/tests/test_gemini_extractor.py`.
+> In `tests/e2e/test_notice_ingestion.py`, exercise the real extraction + AI validation pipeline (using deterministic mocked Gemini responses for the AI call) to verify:
+> 1. Valid digital notice (`notice_01_admissions_schedule.pdf` or synthetic valid PDF): `processing_status == 'completed'` and `publication_status == 'published'` with empty `review_reasons`.
+> 2. Conflicting dates (deadline before notice date): `processing_status == 'completed'`, `publication_status == 'held'`, and `'deadline_prior_to_notice_date'` in `review_reasons` (never auto-published).
+> 3. Multi-page notice (notice date on page 1, deadline on page 3): verify page-aware extraction preserves page 1 and page 3 text and passes both into validation/extraction."
+
+#### 🔹 Prompt 3: Clean Up Incidental Diffs & Verify Full Suites
+> "Ensure `tests/reports/extraction_benchmark.json` has no accidental timestamp-only diff on `test/ingestion-pipeline-e2e` (`git checkout -- tests/reports/extraction_benchmark.json` if modified). Then run both `pytest tests/ -v` and `cd backend && pytest -v` and confirm all tests pass with zero regressions."
 
 ---
 
@@ -120,11 +130,16 @@ Before you begin any task:
 ---
 
 ## 3. Pre-PR Submission Checklist for P1
-- [ ] Run test scripts locally:
+- [ ] Run all test scripts and suites locally:
   ```bash
   python tests/scripts/verify_manifest.py
-  pytest tests/
+  pytest tests/ -v
+  cd backend && pytest -v
   ```
+- [ ] For `P1-3` (`test/ingestion-pipeline-e2e`):
+  - [ ] Confirm `tests/e2e/test_notice_ingestion.py` tests the real `backend/app/main.py` app (no standalone simulated router).
+  - [ ] Confirm `401`, `415` (corrupt PDF), `413` (>10MB), `202` (valid upload), conflicting-date `held` (`deadline_prior_to_notice_date`), and multi-page (page 1 + page 3) cases all pass.
+  - [ ] Confirm `tests/reports/extraction_benchmark.json` has no unintended timestamp-only diff.
 - [ ] Verify zero `.env` or personal data committed: `git status`
 - [ ] Push branch: `git push -u origin <branch-name>`
-- [ ] Open PR tagging `@ProjectLead`.
+- [ ] Open PR tagging `@ProjectLead` with test output attached.
